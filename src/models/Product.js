@@ -1,5 +1,4 @@
-const mongoose =require('mongoose');
-const { type } = require('os');
+import  mongoose from 'mongoose';
 
 const productSchema = new mongoose.Schema({
 
