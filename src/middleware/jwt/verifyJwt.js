@@ -8,17 +8,16 @@ dotenv.config({
 
 const verifyJwt = (req,res,next)=>{
     const authHeader = req.headers['authorization'];
-    console.log(authHeader);
-    
+    console.log(authHeader);    
     if(!authHeader) return res.sendStatus(401);
     console.log(authHeader);
     const token = authHeader.split(' ')[1];
-    jwt.verify(
+       jwt.verify(
         token,
         process.env.ACCESS_TOCKEN_SECRET,
         (err,decoded)=>{
             if(err) return res.sendStatus(403); 
-            req.email =decoded.email;
+            req.user =decoded;
             next();
         }
     )
