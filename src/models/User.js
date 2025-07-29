@@ -18,6 +18,19 @@ const userSchema = new mongoose.Schema({
         type:String,
         enum:['admin','user'],
         default:'user'
+    },
+
+    verified:{
+        type:Boolean,
+        default:false
+    },
+    verificationCode:{
+        type:String,
+        select:false
+    },
+    verificationCodeValidation:{
+        type:String,
+        select:false
     }
 
 
