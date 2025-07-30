@@ -9,7 +9,7 @@ const userRegister = async (req, res) => {
     try {
         const { name, email, password, role } = req.body;
         console.log(password);
-
+        if(role === 'admin') return res.status(403).json({message:'you uer not Admin !'})
         const userExists = await User.findOne({ email });
         if (userExists) return res.status(400).json({ message: 'User already exists !' });
         let hashPass = await bcrypt.hash(password, 10);
@@ -77,7 +77,7 @@ const loginUser = async (req, res) => {
             //     process.env.REFRESH_TOCKEN_SECRET,
             //     {expiresIn: '1d'}
             //  );
-            res.status(200).cookie("accessToken", accessToken, { httpOnly: true, secure: true,}).json({ accessToken })
+            res.status(200).cookie("accessToken", accessToken, { httpOnly: true, secure: true, }).json({ accessToken })
         }
         else {
             return res.status(401).json({ message: 'invalid password' });
@@ -113,53 +113,86 @@ const passwordChange = async (req, res) => {
 
     }
 }
-const logout =  (req, res) => {
-     res.clearCookie("accessToken");
+const logout = (req, res) => {
+    res.clearCookie("accessToken");
     return res.status(200).json('user logout successfully!')
 }
 
 
-const sendVerficationCode = async(req,res)=>{
+const sendVerficationCode = async (req, res) => {
 
-    const {email} =req.body;
-    
-    try{
-       const existUser = await User.findOne({email});
-       console.log(existUser);
-       if(!existUser) return res.status(404).json({message:'User not found!!'});
-       if(existUser.verified) return res.status(400).json({message:'User already verified!!'});
-       const generateCode = Math.floor(Math.random()*1000000).toString();
-       console.log(generateCode);
-       
-       const info = await trasport.sendMail({
-        from: process.env.NODE_EMAIL,
-        to: existUser.email,
-        subject:'email verfication code',
-        html:'<h1>'+generateCode+'</h1>'
-       })
-       console.log("info---:"+info);
-       
-       if(info.accepted[0]=== existUser.email)
-       {
-        const hashCodeValue = hmacProcess(
-            generateCode,
-            process.env.HMAC_VERIFICATION_CODE
-        );
+    const { email } = req.body;
 
-        console.log(hashCodeValue);
-        
-       existUser.verificationCode,
-       existUser.verificationCodeValidation  =Date.now();
-       await existUser.save();
-       return res.status(200).json({message:'Verification code sent your email!!'})
+    try {
+        const existUser = await User.findOne({ email });
+        console.log(existUser);
+        if (!existUser) return res.status(404).json({ message: 'User not found!!' });
+        if (existUser.verified) return res.status(400).json({ message: 'User already verified!!' });
+        const generateCode = Math.floor(Math.random() * 1000000).toString();
+        console.log(generateCode);
+
+        const info = await trasport.sendMail({
+            from: process.env.NODE_EMAIL,
+            to: existUser.email,
+            subject: 'email verfication code',
+            html: '<h1>' + generateCode + '</h1>',
+        })
+        console.log("info---:" + info);
+
+        if (info.accepted[0] === existUser.email) {
+            const hashCodeValue = hmacProcess(
+                generateCode,
+                process.env.HMAC_VERIFICATION_CODE
+            );
+            existUser.verificationCode = hashCodeValue,
+                existUser.verificationCodeValidation = Date.now();
+            await existUser.save();
+            return res.status(200).json({ message: 'Verification code sent your email!!' })
+        }
+        return res.status(400).json({ message: 'please check try again!!' });
     }
-       return res.status(400).json({message:'please check try again!!'});
-    }
-    catch(err){
+    catch (err) {
         console.log(err);
-        
+
     }
 
 }
 
-export { userRegister, loginUser, deleteUser, logout, getAllUsers, passwordChange,sendVerficationCode };
+const verifyCode = async (req, res) => {
+    const { email, provideCode } = req.body;
+    console.log(provideCode);
+
+    try {
+        const codeValue = provideCode.toString();
+        console.log(codeValue);
+
+        const existingUser = await User.findOne({ email }).select("+verificationCode +verificationCodeValidation");
+        console.log(existingUser);
+
+        if (!existingUser) return res.status(404).json({ message: "User not Found!!" });
+        if (existingUser.verified) return res.status(400).json({ message: "User already verified!!" })
+        if (!existingUser.verificationCode || !existingUser.verificationCodeValidation) return res.status(400).json({ message: "please enter correct code!!" })
+        if (Date.now() - existingUser.verificationCodeValidation > 5 * 60 * 1000) return res.status(400).json({ message: "code has been expired!!" });
+
+        const hashCodeValue = hmacProcess(codeValue, process.env.HMAC_VERIFICATION_CODE)
+        if (hashCodeValue === existingUser.verificationCode) {
+            existingUser.verified = true;
+            existingUser.verificationCode = undefined;
+            existingUser.verificationCodeValidation = undefined;
+            await existingUser.save();
+            const verifymail = 'your account has been verified!!'
+            const info = await trasport.sendMail({
+                from: process.env.NODE_EMAIL,
+                to: existUser.email,
+                subject: 'Email Verified',
+                html: '<h3>' + verifymail + '</h3>',
+            })
+            return res.status(200).json({ message: "your account has been verified!!" });
+        }
+    } catch (err) {
+        console.log(err);
+
+    }
+}
+
+export { userRegister, loginUser, deleteUser, logout, getAllUsers, passwordChange, sendVerficationCode, verifyCode };
